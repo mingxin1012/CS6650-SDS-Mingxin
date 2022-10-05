@@ -1,5 +1,7 @@
-package com.sds;
+package com.sds.part1;
 
+import com.sds.PostConsumer;
+import com.sds.PostProducer;
 import com.sds.model.LiftRideEvent;
 import com.sds.model.RequestCounter;
 import io.swagger.client.api.SkiersApi;
@@ -9,51 +11,41 @@ import java.util.concurrent.*;
 
 public class NoThreadPoolRunner {
 
+    private final static int N_REQUESTS = 200000;
+    private final static LiftRideEvent POISON = new LiftRideEvent();
+    private final static int PHASE_TWO_THREADS = 168;
+    private final static int PHASE_ONE_THREADS = 32;
+    private final static String BASE_PATH = "http://54.245.60.78:8080/skiers_Web/skier";
+
     public static void main(String[] args) throws InterruptedException {
-        int N_QUEUE = 10000;
+
         Timestamp startTime = new Timestamp(System.currentTimeMillis());
-        int N_REQUESTS = 200000;
-        LiftRideEvent POISON = new LiftRideEvent();
+
         SkiersApi apiInstance = new SkiersApi();
         RequestCounter numPassedRequests = new RequestCounter();
         RequestCounter numFailedRequests = new RequestCounter();
-        int N_CONSUMERS = Runtime.getRuntime().availableProcessors();
-        int PHASE_ONE_THREADS = 32;
-
-        int PHASE_TWO_THREADS = 168;
 
         BlockingQueue<LiftRideEvent> blockingQueue = new LinkedBlockingDeque<>();
 
-
-        //start a single dedicated thread to create lift ride event
-        Runnable producer = new PostProducer(blockingQueue,N_CONSUMERS,POISON,N_REQUESTS);
-        ExecutorService producerExecutor = Executors.newSingleThreadExecutor();
-        producerExecutor.execute(producer);
-
-        //phase 1
-        CountDownLatch overallLatch = new CountDownLatch(PHASE_ONE_THREADS + PHASE_TWO_THREADS);
-        CountDownLatch latch1 = new CountDownLatch(PHASE_ONE_THREADS);
+        CountDownLatch consumerLatch = new CountDownLatch(PHASE_ONE_THREADS + PHASE_TWO_THREADS);
 
         for (int i = 0; i < PHASE_ONE_THREADS; i++) {
             // lambda runnable creation - interface only has a single method so lambda works fine
-            new LiftRideThread(blockingQueue,apiInstance, latch1,overallLatch, numPassedRequests, numFailedRequests).start();
+            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, apiInstance,numPassedRequests, numFailedRequests,consumerLatch)).start();
         }
-        latch1.await();
-        CountDownLatch latch2 = new CountDownLatch(PHASE_TWO_THREADS);
+
         for (int i = 0; i < PHASE_TWO_THREADS; i++) {
             // lambda runnable creation - interface only has a single method so lambda works fine
-            new LiftRideThread(blockingQueue,apiInstance, latch2,overallLatch, numPassedRequests, numFailedRequests).start();
+            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, apiInstance,numPassedRequests, numFailedRequests,consumerLatch)).start();
         }
-        latch2.await();
-        overallLatch.countDown();
 
-        producerExecutor.shutdown();
-        try {
-            producerExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            System.err.println("Thread is interrupted");
-            e.printStackTrace();
-        }
+        //start a single dedicated thread to create lift ride event
+        CountDownLatch producerLatch = new CountDownLatch(1);
+        Runnable producer = new PostProducer(blockingQueue,PHASE_TWO_THREADS +PHASE_ONE_THREADS ,POISON,N_REQUESTS,producerLatch);
+        new Thread(producer).start();
+
+        producerLatch.await();
+        consumerLatch.await();
 
         Timestamp endTime = new Timestamp(System.currentTimeMillis());
         long latency = endTime.getTime() - startTime.getTime();

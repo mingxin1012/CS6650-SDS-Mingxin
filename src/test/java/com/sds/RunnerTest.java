@@ -11,7 +11,7 @@ import org.junit.Test;
 import java.sql.Timestamp;
 
 public class RunnerTest extends TestCase {
-    private final static String BASE_PATH = "http://35.92.186.195:8080/skiers_Web/skier";
+    private final static String BASE_PATH = "http://54.245.60.78:8080/skiers_Web/skier";
 
     @Test
     public void testLatency() throws ApiException {

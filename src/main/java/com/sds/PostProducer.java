@@ -10,12 +10,15 @@ public class PostProducer implements Runnable {
     private final int numPoisonPills;
     private final LiftRideEvent poison;
     private final int numPostRequests;
+    private final CountDownLatch latch;
 
-    public PostProducer(BlockingQueue<LiftRideEvent> inputQueue, int numPoisonPills, LiftRideEvent poison, int numPostRequests) {
+
+    public PostProducer(BlockingQueue<LiftRideEvent> inputQueue, int numPoisonPills, LiftRideEvent poison, int numPostRequests, CountDownLatch latch) {
         this.inputQueue = inputQueue;
         this.numPoisonPills = numPoisonPills;
         this.poison = poison;
         this.numPostRequests = numPostRequests;
+        this.latch = latch;
 
     }
 
@@ -28,7 +31,7 @@ public class PostProducer implements Runnable {
             System.err.println("Thread is interrupted");
             e.printStackTrace();
         }
-
+        this.latch.countDown();
     }
 
     private void generateNumbers() throws InterruptedException {

@@ -14,20 +14,22 @@ public class PostConsumer implements Runnable {
     private final SkiersApi apiInstance;
     private final RequestCounter numPassedRequests;
     private final RequestCounter numFailedRequests;
-    private final static String BASE_PATH = "http://35.92.186.195:8080/skiers_Web/skier";
+
     private final static Integer MAX_TRIES = 5;
+    private final CountDownLatch latch;
 
 
-    public PostConsumer(BlockingQueue<LiftRideEvent> inputQueue, LiftRideEvent poison,
-                        SkiersApi apiInstance, RequestCounter numPassedRequests, RequestCounter numFailedRequests) {
+    public PostConsumer(String base_path, BlockingQueue<LiftRideEvent> inputQueue, LiftRideEvent poison,
+                        SkiersApi apiInstance, RequestCounter numPassedRequests, RequestCounter numFailedRequests, CountDownLatch latch) {
         this.inputQueue = inputQueue;
         this.poison = poison;
         this.apiInstance = apiInstance;
         ApiClient apiClient = new ApiClient();
-        apiClient.setBasePath(BASE_PATH);
+        apiClient.setBasePath(base_path);
         apiInstance.setApiClient(apiClient);
         this.numFailedRequests = numFailedRequests;
         this.numPassedRequests = numPassedRequests;
+        this.latch = latch;
 
     }
 
@@ -35,19 +37,19 @@ public class PostConsumer implements Runnable {
     public void run() {
         //worker loop keeps taking en element from the queue as long as the producer is still running or as 
         //long as the queue is not empty:
-
+        System.out.println("New Consumer Thread " + Thread.currentThread().getName() + " START");
         try {
             while (true) {
-                System.out.println("Post Request " + Thread.currentThread().getName() + " START");
+                //System.out.println("Post Request " + Thread.currentThread().getName() + " START");
                 LiftRideEvent event = inputQueue.take();
 
-                if (event == poison) {
+                if (event.equals(poison) ) {
                     break;
                 }
                 //process queueElement
                 this.retryRequests(event,apiInstance);
                 this.numPassedRequests.inc();
-                System.out.println("Post Request " + Thread.currentThread().getName() + " END");
+                //System.out.println("Post Request " + Thread.currentThread().getName() + " END");
             }
         } catch (InterruptedException e) {
             System.err.println("Thread is interrupted");
@@ -57,6 +59,8 @@ public class PostConsumer implements Runnable {
             System.err.println("Exception when calling SkierApi#writeNewLiftRide");
             e.printStackTrace();
         }
+        this.latch.countDown();
+        System.out.println("New Consumer Thread " + Thread.currentThread().getName() + " END");
     }
     private void retryRequests(LiftRideEvent event, SkiersApi apiInstance) throws ApiException{
         int count = 0;

@@ -15,7 +15,7 @@ public class NoThreadPoolRunner {
     private final static LiftRideEvent POISON = new LiftRideEvent();
     private final static int PHASE_TWO_THREADS = 168;
     private final static int PHASE_ONE_THREADS = 32;
-    private final static String BASE_PATH = "http://54.245.60.78:8080/skiers_Web/skier";
+    private final static String BASE_PATH = "http://18.237.221.66:8080/skiers_Web/skier";
 
     public static void main(String[] args) throws InterruptedException {
 
@@ -27,17 +27,6 @@ public class NoThreadPoolRunner {
 
         BlockingQueue<LiftRideEvent> blockingQueue = new LinkedBlockingDeque<>();
 
-        CountDownLatch consumerLatch = new CountDownLatch(PHASE_ONE_THREADS + PHASE_TWO_THREADS);
-
-        for (int i = 0; i < PHASE_ONE_THREADS; i++) {
-            // lambda runnable creation - interface only has a single method so lambda works fine
-            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, apiInstance,numPassedRequests, numFailedRequests,consumerLatch)).start();
-        }
-
-        for (int i = 0; i < PHASE_TWO_THREADS; i++) {
-            // lambda runnable creation - interface only has a single method so lambda works fine
-            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, apiInstance,numPassedRequests, numFailedRequests,consumerLatch)).start();
-        }
 
         //start a single dedicated thread to create lift ride event
         CountDownLatch producerLatch = new CountDownLatch(1);
@@ -45,6 +34,16 @@ public class NoThreadPoolRunner {
         new Thread(producer).start();
 
         producerLatch.await();
+        CountDownLatch consumerLatch = new CountDownLatch(PHASE_ONE_THREADS + PHASE_TWO_THREADS);
+        for (int i = 0; i < PHASE_ONE_THREADS; i++) {
+            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, 1000, numPassedRequests, numFailedRequests,consumerLatch)).start();
+        }
+
+        for (int i = 0; i < PHASE_TWO_THREADS; i++) {
+            new Thread(new PostConsumer(BASE_PATH,blockingQueue, POISON, 3500, numPassedRequests, numFailedRequests,consumerLatch)).start();
+        }
+
+
         consumerLatch.await();
 
         Timestamp endTime = new Timestamp(System.currentTimeMillis());

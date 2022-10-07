@@ -5,6 +5,7 @@ import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
 import io.swagger.client.api.SkiersApi;
 
+import java.io.PrintWriter;
 import java.util.concurrent.*;
 
 public class PostConsumer implements Runnable {
@@ -12,6 +13,7 @@ public class PostConsumer implements Runnable {
     private final BlockingQueue<LiftRideEvent> inputQueue;
     private final LiftRideEvent poison;
     private final SkiersApi apiInstance;
+    private final int numOfRequests;
     private final RequestCounter numPassedRequests;
     private final RequestCounter numFailedRequests;
 
@@ -20,13 +22,13 @@ public class PostConsumer implements Runnable {
 
 
     public PostConsumer(String base_path, BlockingQueue<LiftRideEvent> inputQueue, LiftRideEvent poison,
-                        SkiersApi apiInstance, RequestCounter numPassedRequests, RequestCounter numFailedRequests, CountDownLatch latch) {
+                         int numOfRequests, RequestCounter numPassedRequests, RequestCounter numFailedRequests, CountDownLatch latch) {
         this.inputQueue = inputQueue;
         this.poison = poison;
-        this.apiInstance = apiInstance;
-        ApiClient apiClient = new ApiClient();
-        apiClient.setBasePath(base_path);
-        apiInstance.setApiClient(apiClient);
+        this.numOfRequests = numOfRequests;
+        this.apiInstance = new SkiersApi();
+        ApiClient client = apiInstance.getApiClient();
+        client.setBasePath(base_path);
         this.numFailedRequests = numFailedRequests;
         this.numPassedRequests = numPassedRequests;
         this.latch = latch;
@@ -37,30 +39,32 @@ public class PostConsumer implements Runnable {
     public void run() {
         //worker loop keeps taking en element from the queue as long as the producer is still running or as 
         //long as the queue is not empty:
-        System.out.println("New Consumer Thread " + Thread.currentThread().getName() + " START");
+        System.out.println("Consumer Thread " + Thread.currentThread().getName() + " START");
+        int counter = 0;
         try {
-            while (true) {
+            for(int i = 0; i < numOfRequests; i++) {
                 //System.out.println("Post Request " + Thread.currentThread().getName() + " START");
                 LiftRideEvent event = inputQueue.take();
 
-                if (event.equals(poison) ) {
+                if (event == poison ) {
                     break;
                 }
                 //process queueElement
                 this.retryRequests(event,apiInstance);
-                this.numPassedRequests.inc();
+                counter++;
                 //System.out.println("Post Request " + Thread.currentThread().getName() + " END");
             }
         } catch (InterruptedException e) {
             System.err.println("Thread is interrupted");
             e.printStackTrace();
         } catch (ApiException e){
-            this.numFailedRequests.inc();
+            this.numFailedRequests.inc(1);
             System.err.println("Exception when calling SkierApi#writeNewLiftRide");
             e.printStackTrace();
         }
+        this.numPassedRequests.inc(counter);
+        System.out.println("Consumer Thread " + Thread.currentThread().getName() + " END");
         this.latch.countDown();
-        System.out.println("New Consumer Thread " + Thread.currentThread().getName() + " END");
     }
     private void retryRequests(LiftRideEvent event, SkiersApi apiInstance) throws ApiException{
         int count = 0;

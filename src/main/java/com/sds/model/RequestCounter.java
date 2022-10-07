@@ -7,8 +7,8 @@ public class RequestCounter {
         this.count = 0;
     }
 
-    synchronized public void inc() {
-        count++;
+    synchronized public void inc(int num) {
+        count += num;
     }
 
     public int getVal() {

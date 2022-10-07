@@ -1,14 +1,21 @@
-package com.sds;
+package com.sds.part2;
+
 import com.sds.model.LiftRideEvent;
 import com.sds.model.RequestCounter;
 import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
+import io.swagger.client.ApiResponse;
 import io.swagger.client.api.SkiersApi;
 
-import java.io.PrintWriter;
-import java.util.concurrent.*;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 
 public class PostConsumer implements Runnable {
+    private final static Integer MAX_TRIES = 5;
 
     private final BlockingQueue<LiftRideEvent> inputQueue;
     private final LiftRideEvent poison;
@@ -16,23 +23,23 @@ public class PostConsumer implements Runnable {
     private final int numOfRequests;
     private final RequestCounter numPassedRequests;
     private final RequestCounter numFailedRequests;
-
-    private final static Integer MAX_TRIES = 5;
     private final CountDownLatch latch;
+    private final SharedFileWriter sharedFileWriter;
+    private final Queue<Metric> metrics;
 
 
     public PostConsumer(String base_path, BlockingQueue<LiftRideEvent> inputQueue, LiftRideEvent poison,
-                         int numOfRequests, RequestCounter numPassedRequests, RequestCounter numFailedRequests, CountDownLatch latch) {
+                        int numOfRequests, RequestCounter numPassedRequests, RequestCounter numFailedRequests, CountDownLatch latch, SharedFileWriter sharedFileWriter, Queue<Metric> metrics) {
         this.inputQueue = inputQueue;
         this.poison = poison;
         this.numOfRequests = numOfRequests;
         this.apiInstance = new SkiersApi();
-        ApiClient client = apiInstance.getApiClient();
-        client.setBasePath(base_path);
+        apiInstance.getApiClient().setBasePath(base_path);
         this.numFailedRequests = numFailedRequests;
         this.numPassedRequests = numPassedRequests;
         this.latch = latch;
-
+        this.sharedFileWriter = sharedFileWriter;
+        this.metrics = metrics;
     }
 
     @Override
@@ -41,6 +48,7 @@ public class PostConsumer implements Runnable {
         //long as the queue is not empty:
         System.out.println("Consumer Thread " + Thread.currentThread().getName() + " START");
         int counter = 0;
+        ArrayList<String> data = new ArrayList<>();
         try {
             for(int i = 0; i < numOfRequests; i++) {
                 //System.out.println("Post Request " + Thread.currentThread().getName() + " START");
@@ -50,7 +58,15 @@ public class PostConsumer implements Runnable {
                     break;
                 }
                 //process queueElement
-                this.retryRequests(event,apiInstance);
+                long startTime = new Timestamp(System.currentTimeMillis()).getTime();
+                String startTimeViewer = new Timestamp(System.currentTimeMillis()).toString();
+                int statusCode = this.retryRequests(event,apiInstance);
+                long endTime = new Timestamp(System.currentTimeMillis()).getTime();
+                long latency = endTime - startTime;
+                Metric metric = new Metric(startTimeViewer,"POST",latency,statusCode);
+                String fileLine =  metric.toString();
+                metrics.add(metric);
+                data.add(fileLine);
                 counter++;
                 //System.out.println("Post Request " + Thread.currentThread().getName() + " END");
             }
@@ -62,17 +78,18 @@ public class PostConsumer implements Runnable {
             System.err.println("Exception when calling SkierApi#writeNewLiftRide");
             e.printStackTrace();
         }
+        this.sharedFileWriter.addData(data);
         this.numPassedRequests.inc(counter);
         System.out.println("Consumer Thread " + Thread.currentThread().getName() + " END");
         this.latch.countDown();
     }
-    private void retryRequests(LiftRideEvent event, SkiersApi apiInstance) throws ApiException{
+    private int retryRequests(LiftRideEvent event, SkiersApi apiInstance) throws ApiException{
         int count = 0;
         int maxTries = MAX_TRIES;
         while(true) {
             try {
-                apiInstance.writeNewLiftRide(event.getBody(), event.getResortID(), event.getSeasonID(), event.getDayID(), event.getSkierID());
-                break;
+                ApiResponse<Void> response = apiInstance.writeNewLiftRideWithHttpInfo(event.getBody(), event.getResortID(), event.getSeasonID(), event.getDayID(), event.getSkierID());
+                return response.getStatusCode();
             } catch (ApiException e) {
                 if (++count == maxTries) throw e;
             }

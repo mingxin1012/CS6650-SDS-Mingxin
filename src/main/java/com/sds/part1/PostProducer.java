@@ -1,4 +1,4 @@
-package com.sds;
+package com.sds.part1;
 
 import com.sds.model.LiftRideEvent;
 

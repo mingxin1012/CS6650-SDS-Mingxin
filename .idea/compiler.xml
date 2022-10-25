@@ -7,7 +7,7 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="CS6650-SDS-Fall22-Mingxin" />
-        <module name="CS6650-SDS-Mingxin" />
+        <module name="CS6650-SDS-Mingxin-Client" />
       </profile>
     </annotationProcessing>
   </component>

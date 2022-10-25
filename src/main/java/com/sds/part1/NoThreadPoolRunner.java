@@ -9,13 +9,13 @@ import java.util.concurrent.*;
 
 public class NoThreadPoolRunner {
 
-    private final static int N_REQUESTS = 200000;
+    private final static int N_REQUESTS = 200;
     private final static LiftRideEvent POISON = new LiftRideEvent();
     private final static int PHASE_TWO_THREADS = 168;
     private final static int PHASE_ONE_THREADS = 32;
     private final static int MAX_REQUEST_ACCEPT_PHASE_ONE = 1000;
     private final static int MAX_REQUEST_ACCEPT_PHASE_TWO = 1200;
-    private final static String BASE_PATH = "http://35.90.159.76:8080/skiers_Web/skier";
+    private final static String BASE_PATH = "http://localhost:8080/skiers_Web/skier";
 
     public static void main(String[] args) throws InterruptedException {
 

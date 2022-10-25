@@ -23,7 +23,7 @@ public class Runner {
     private final static int PHASE_ONE_THREADS = 32;
     private final static int MAX_REQUEST_ACCEPT_PHASE_ONE = 1000;
     private final static int MAX_REQUEST_ACCEPT_PHASE_TWO = 1200;
-    private final static String BASE_PATH = "http://35.90.159.76:8080/skiers_Web/skier";
+    private final static String BASE_PATH = "http://localhost:8080/skiers_Web/skier";
 
     public static void main(String[] args) throws InterruptedException{
         final SharedFileWriter sharedFileWriter = new SharedFileWriter();

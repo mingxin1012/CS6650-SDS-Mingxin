@@ -60,7 +60,10 @@ public class PostConsumer implements Runnable {
                 //process queueElement
                 long startTime = new Timestamp(System.currentTimeMillis()).getTime();
                 String startTimeViewer = new Timestamp(System.currentTimeMillis()).toString();
+
+                //send post requests, maximum attempt is MAX_TRIES;
                 int statusCode = this.retryRequests(event,apiInstance);
+
                 long endTime = new Timestamp(System.currentTimeMillis()).getTime();
                 long latency = endTime - startTime;
                 Metric metric = new Metric(startTimeViewer,"POST",latency,statusCode);
